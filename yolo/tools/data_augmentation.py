@@ -356,3 +356,56 @@ class Scale:
             boxes[:, [2, 4]] = (boxes[:, [2, 4]] * new_height + pad_y) / original_height
         
         return scaled_image, boxes
+    
+class HSVAugment:
+    """HSV color space augmentation using torchvision functional transforms."""
+    
+    def __init__(self, hgain=0.015, sgain=0.7, vgain=0.4, prob=1.0):
+        """
+        Args:
+            hgain (float): Hue gain range [-hgain, +hgain]
+            sgain (float): Saturation gain range [1-sgain, 1+sgain] 
+            vgain (float): Value/brightness gain range [1-vgain, 1+vgain]
+            prob (float): Probability of applying augmentation
+        """
+        self.hgain = hgain
+        self.sgain = sgain  
+        self.vgain = vgain
+        self.prob = prob
+    
+    def __call__(self, image, boxes):
+        """
+        Apply HSV augmentation to image.
+        
+        Args:
+            image (PIL.Image): Input image
+            boxes (torch.Tensor): Bounding boxes [class, x_min, y_min, x_max, y_max]
+            
+        Returns:
+            tuple: (augmented_image, boxes)
+        """
+        if torch.rand(1) >= self.prob:
+            return image, boxes
+        
+        # Generate random gains
+        h_gain = (torch.rand(1) * 2 - 1) * self.hgain  # [-hgain, +hgain]
+        s_gain = torch.rand(1) * (2 * self.sgain) + (1 - self.sgain)  # [1-sgain, 1+sgain]
+        v_gain = torch.rand(1) * (2 * self.vgain) + (1 - self.vgain)  # [1-vgain, 1+vgain]
+        
+        # Apply HSV adjustments using torchvision functional
+        # Note: TF.adjust_hue expects hue_factor in [-0.5, 0.5]
+        # TF.adjust_saturation expects saturation_factor >= 0
+        # TF.adjust_brightness expects brightness_factor >= 0
+        
+        # Clamp values to valid ranges
+        h_factor = torch.clamp(h_gain, -0.5, 0.5)
+        s_factor = torch.clamp(s_gain, 0.1, 2.0)  # Prevent complete desaturation
+        v_factor = torch.clamp(v_gain, 0.1, 2.0)  # Prevent complete darkness
+        
+        # Apply transformations
+        augmented_image = TF.adjust_hue(image, h_factor.item())
+        augmented_image = TF.adjust_saturation(augmented_image, s_factor.item())
+        augmented_image = TF.adjust_brightness(augmented_image, v_factor.item())
+        
+        # Boxes remain unchanged for color augmentation
+        return augmented_image, boxes
