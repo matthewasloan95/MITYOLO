@@ -173,6 +173,9 @@ class MixUp:
         # Retrieve another image and its boxes randomly from the dataset
         image2, boxes2 = self.parent.get_more_data()[0]
 
+        # Resize image2 to match image1 dimensions
+        image2 = image2.resize(image.size, Image.Resampling.LANCZOS)
+        
         # Calculate the mixup lambda parameter
         lam = np.random.beta(self.alpha, self.alpha) if self.alpha > 0 else 0.5
 
