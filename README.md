@@ -17,6 +17,8 @@
 >
 > Use of this code is at your own risk and discretion. It is advisable to consult with the project owner before deploying or integrating into any critical systems. -->
 
+## My (Matt) goal here was was to fix a few issues and make this project suit my needs / goals. 
+
 Welcome to the official implementation of YOLOv7[^1] and YOLOv9[^2], YOLO-RD[^3]. This repository will contains the complete codebase, pre-trained models, and detailed instructions for training and deploying YOLOv9.
 
 ## TL;DR
