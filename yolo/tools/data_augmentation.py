@@ -312,16 +312,32 @@ class Scale:
         # Get original dimensions
         original_width, original_height = image.size
         
+        # Skip scaling if image is too small
+        if original_width <= 2 or original_height <= 2:
+            return image, boxes
+        
         # Generate random scale factor
         scale_factor = torch.rand(1) * (self.scale_range[1] - self.scale_range[0]) + self.scale_range[0]
         scale_multiplier = 1.0 + scale_factor.item()
         
+        # Ensure minimum scale multiplier to prevent zero/negative dimensions
+        scale_multiplier = max(scale_multiplier, 0.1)
+        
         # Calculate new dimensions after scaling
-        new_width = int(original_width * scale_multiplier)
-        new_height = int(original_height * scale_multiplier)
+        new_width = max(1, int(original_width * scale_multiplier))
+        new_height = max(1, int(original_height * scale_multiplier))
+        
+        # Additional safety check
+        if new_width <= 0 or new_height <= 0:
+            return image, boxes
         
         # Scale the image
-        scaled_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        try:
+            scaled_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        except ValueError as e:
+            # Fallback if resize still fails
+            print(f"Scale resize failed: {e}. Original: {original_width}x{original_height}, New: {new_width}x{new_height}, Multiplier: {scale_multiplier}")
+            return image, boxes
         
         if scale_multiplier > 1.0:
             # Zooming in - crop to original size from center
