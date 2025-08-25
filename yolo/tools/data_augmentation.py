@@ -271,3 +271,85 @@ class OneOf:
         # Randomly select one transform from the list
         selected_transform = random.choice(self.transforms)
         return selected_transform(image, boxes)
+    
+class Scale:
+    """Randomly scales (zooms in/out) the image while maintaining output dimensions."""
+    
+    def __init__(self, scale_range=0.5, prob=0.5, fill_color=(114, 114, 114)):
+        """
+        Args:
+            scale_range (float or tuple): Scale factor range. 
+                                         If float, range will be [-scale_range, +scale_range].
+                                         If tuple, should be (min_scale, max_scale).
+                                         Positive values zoom in, negative zoom out.
+            prob (float): Probability of applying the scaling
+            fill_color (tuple): RGB color to use for padding when zooming out
+        """
+        if isinstance(scale_range, (int, float)):
+            self.scale_range = (-abs(scale_range), abs(scale_range))
+        else:
+            self.scale_range = scale_range
+        self.prob = prob
+        self.fill_color = fill_color
+    
+    def __call__(self, image, boxes):
+        """
+        Apply random scaling to the image and adjust bounding boxes.
+        
+        Args:
+            image (PIL.Image): Input image
+            boxes (torch.Tensor): Bounding boxes [class, x_min, y_min, x_max, y_max]
+            
+        Returns:
+            tuple: (scaled_image, adjusted_boxes)
+        """
+        if torch.rand(1) >= self.prob:
+            return image, boxes
+        
+        # Get original dimensions
+        original_width, original_height = image.size
+        
+        # Generate random scale factor
+        scale_factor = torch.rand(1) * (self.scale_range[1] - self.scale_range[0]) + self.scale_range[0]
+        scale_multiplier = 1.0 + scale_factor.item()
+        
+        # Calculate new dimensions after scaling
+        new_width = int(original_width * scale_multiplier)
+        new_height = int(original_height * scale_multiplier)
+        
+        # Scale the image
+        scaled_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        if scale_multiplier > 1.0:
+            # Zooming in - crop to original size from center
+            left = (new_width - original_width) // 2
+            top = (new_height - original_height) // 2
+            scaled_image = scaled_image.crop((left, top, left + original_width, top + original_height))
+            
+            # Adjust bounding boxes for cropping
+            # Convert from normalized to absolute coordinates
+            boxes[:, [1, 3]] = boxes[:, [1, 3]] * new_width - left
+            boxes[:, [2, 4]] = boxes[:, [2, 4]] * new_height - top
+            
+            # Clamp boxes to stay within the cropped area
+            boxes[:, [1, 3]] = boxes[:, [1, 3]].clamp(0, original_width)
+            boxes[:, [2, 4]] = boxes[:, [2, 4]].clamp(0, original_height)
+            
+            # Convert back to normalized coordinates
+            boxes[:, [1, 3]] = boxes[:, [1, 3]] / original_width
+            boxes[:, [2, 4]] = boxes[:, [2, 4]] / original_height
+            
+        else:
+            # Zooming out - pad to original size
+            pad_x = (original_width - new_width) // 2
+            pad_y = (original_height - new_height) // 2
+            
+            padded_image = Image.new("RGB", (original_width, original_height), self.fill_color)
+            padded_image.paste(scaled_image, (pad_x, pad_y))
+            scaled_image = padded_image
+            
+            # Adjust bounding boxes for padding
+            boxes[:, [1, 3]] = (boxes[:, [1, 3]] * new_width + pad_x) / original_width
+            boxes[:, [2, 4]] = (boxes[:, [2, 4]] * new_height + pad_y) / original_height
+        
+        return scaled_image, boxes
