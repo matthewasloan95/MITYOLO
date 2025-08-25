@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision.transforms import functional as TF
+import random
 
 
 class AugmentationComposer:
@@ -214,3 +215,59 @@ class RandomCrop:
             boxes[:, [2, 4]] /= crop_height
 
         return image, boxes
+
+
+class OneOf:
+    """Randomly selects and applies one augmentation from a list of augmentations."""
+    
+    def __init__(self, transforms=None, prob=1.0):
+        """
+        Args:
+            transforms (list, optional): List of augmentation transforms to choose from.
+                                       If None, defaults to [Mosaic(), MixUp()]
+            prob (float): Probability of applying any augmentation (0.0 to 1.0)
+                         If prob < 1.0, there's a chance no augmentation is applied
+        """
+        # Handle case where first argument might be prob instead of transforms
+        if transforms is not None and isinstance(transforms, (int, float)) and transforms <= 1.0:
+            # If transforms looks like a probability value, treat it as prob and use defaults
+            prob = transforms
+            transforms = None
+            
+        if transforms is None:
+            # Default to Mosaic and MixUp with prob=1.0 since OneOf handles probability
+            self.transforms = [Mosaic(prob=1.0), MixUp(prob=1.0)]
+        else:
+            self.transforms = transforms
+        self.prob = prob
+        self.parent = None
+    
+    def set_parent(self, parent):
+        """Set parent for all child transforms that need it (like Mosaic and MixUp)."""
+        self.parent = parent
+        for transform in self.transforms:
+            if hasattr(transform, 'set_parent'):
+                transform.set_parent(parent)
+    
+    def __call__(self, image, boxes):
+        """
+        Randomly select and apply one transform from the list.
+        
+        Args:
+            image (PIL.Image): Input image
+            boxes (torch.Tensor): Bounding boxes [class, x_min, y_min, x_max, y_max]
+            
+        Returns:
+            tuple: (image, boxes) after applying selected transform or unchanged if prob not met
+        """
+        # Check if we should apply any augmentation at all
+        if torch.rand(1) >= self.prob:
+            return image, boxes
+        
+        # If no transforms provided, return unchanged
+        if not self.transforms:
+            return image, boxes
+        
+        # Randomly select one transform from the list
+        selected_transform = random.choice(self.transforms)
+        return selected_transform(image, boxes)
