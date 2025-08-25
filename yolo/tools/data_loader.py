@@ -16,6 +16,7 @@ from yolo.tools.data_augmentation import *
 from yolo.tools.data_augmentation import AugmentationComposer
 from yolo.tools.dataset_preparation import prepare_dataset
 from yolo.utils.dataset_utils import (
+    convert_bboxes,
     create_image_metadata,
     locate_label_paths,
     scale_segmentation,
@@ -116,7 +117,8 @@ class YoloDataset(Dataset):
                     image_seg_annotations = []
                 else:
                     with open(label_path, "r") as file:
-                        image_seg_annotations = [list(map(float, line.strip().split())) for line in file]
+                        annotations = [list(map(float, line.strip().split())) for line in file]
+                        image_seg_annotations = convert_bboxes(annotations)
             else:
                 image_seg_annotations = []
 
